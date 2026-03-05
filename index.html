@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quadrotor Simulator</title>
+
+  <!-- Three.js (importmap) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three":          "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/":  "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <style>
+    /* ── リセット ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d1a;
+      color: #ccd6f6;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── レイアウト ── */
+    #left-panel {
+      width: 240px;
+      min-width: 240px;
+      background: #111130;
+      border-right: 1px solid #2a2a5a;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #canvas-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #right-panel {
+      width: 200px;
+      min-width: 200px;
+      background: #111130;
+      border-left: 1px solid #2a2a5a;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* ── カード ── */
+    .card {
+      background: #1a1a3a;
+      border: 1px solid #2a2a5a;
+      border-radius: 4px;
+      padding: 8px;
+    }
+    .card h3 {
+      color: #64ffda;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      border-bottom: 1px solid #2a2a5a;
+      padding-bottom: 4px;
+    }
+
+    /* ── ボタン ── */
+    .btn-row {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #1e1e4a;
+      color: #8892b0;
+      border: 1px solid #3a3a6a;
+      border-radius: 3px;
+      padding: 5px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+    button:hover:not(:disabled)  { background: #2a2a6a; color: #ccd6f6; }
+    button:disabled               { opacity: 0.4; cursor: default; }
+    button.primary                { background: #0d4f3a; color: #64ffda; border-color: #64ffda44; }
+    button.primary:hover          { background: #1a7a5a; }
+    button.danger                 { background: #4f0d0d; color: #ff6464; border-color: #ff644444; }
+    button.danger:hover           { background: #7a1a1a; }
+    button.active                 { background: #4f3a0d; color: #ffda64; border-color: #ffda6444; }
+
+    /* ── スライダ ── */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 3px;
+    }
+    .slider-row label {
+      width: 80px;
+      flex-shrink: 0;
+      color: #8892b0;
+    }
+    .slider-row label .val {
+      color: #64ffda;
+      margin-left: 2px;
+    }
+    .slider-row input[type=range] {
+      flex: 1;
+      height: 4px;
+      accent-color: #64ffda;
+    }
+
+    /* ── セットポイント ── */
+    .sp-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+    .sp-row label { color: #8892b0; }
+    .sp-row input[type=range] { accent-color: #ff9f43; }
+    .sp-val { color: #ff9f43; text-align: right; }
+
+    /* ── 状態情報 ── */
+    .info-row {
+      margin-bottom: 4px;
+    }
+    .info-label {
+      color: #64ffda;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .info-value {
+      color: #ccd6f6;
+      font-size: 11px;
+      word-break: break-all;
+    }
+
+    /* ── HUDオーバーレイ (キャンバス上) ── */
+    #hud {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      pointer-events: none;
+      color: #64ffda88;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+    #hud .hud-title {
+      color: #64ffdacc;
+      font-weight: bold;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    /* ── スクロールバー ── */
+    ::-webkit-scrollbar       { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0d0d1a; }
+    ::-webkit-scrollbar-thumb { background: #2a2a5a; border-radius: 2px; }
+
+    /* ── セクション区切り ── */
+    .section-title {
+      color: #64ffda88;
+      font-size: 10px;
+      letter-spacing: 1px;
+      margin: 4px 0 2px;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════ 左パネル ══════════ -->
+<div id="left-panel">
+
+  <!-- 実行制御 -->
+  <div class="card">
+    <h3>シミュレーション</h3>
+    <div class="btn-row">
+      <button id="btn-start" class="primary">▶ 開始</button>
+      <button id="btn-pause" disabled>⏸ 停止</button>
+      <button id="btn-reset" class="danger">↺ リセット</button>
+    </div>
+  </div>
+
+  <!-- セットポイント -->
+  <div class="card">
+    <h3>セットポイント</h3>
+
+    <div class="sp-row">
+      <label for="sp-x">X [m]</label>
+      <span class="sp-val"><span id="sp-x-val">0.0</span> m</span>
+    </div>
+    <input type="range" id="sp-x" min="-10" max="10" step="0.1" value="0" style="width:100%;accent-color:#ff9f43;margin-bottom:4px">
+
+    <div class="sp-row">
+      <label for="sp-y">Y [m]</label>
+      <span class="sp-val"><span id="sp-y-val">0.0</span> m</span>
+    </div>
+    <input type="range" id="sp-y" min="-10" max="10" step="0.1" value="0" style="width:100%;accent-color:#ff9f43;margin-bottom:4px">
+
+    <div class="sp-row">
+      <label for="sp-z">Z [m] (高度)</label>
+      <span class="sp-val"><span id="sp-z-val">1.0</span> m</span>
+    </div>
+    <input type="range" id="sp-z" min="0" max="10" step="0.1" value="1" style="width:100%;accent-color:#ff9f43;margin-bottom:4px">
+
+    <div class="sp-row">
+      <label for="sp-psi">Yaw [°]</label>
+      <span class="sp-val"><span id="sp-psi-val">0</span> °</span>
+    </div>
+    <input type="range" id="sp-psi" min="-180" max="180" step="1" value="0" style="width:100%;accent-color:#ff9f43">
+  </div>
+
+  <!-- 外乱 -->
+  <div class="card">
+    <h3>外乱注入</h3>
+    <div class="btn-row">
+      <button id="btn-wind-x">東風 +X</button>
+      <button id="btn-wind-y">北風 +Y</button>
+      <button id="btn-gust">突風</button>
+    </div>
+    <div class="btn-row" style="margin-top:4px">
+      <button id="btn-turb">乱流 OFF</button>
+      <button id="btn-clear-dist" class="danger">クリア</button>
+    </div>
+  </div>
+
+  <!-- PID ゲイン -->
+  <div class="card">
+    <h3>PID ゲイン</h3>
+
+    <div class="section-title">位置 XY</div>
+    <div class="slider-row">
+      <label for="pos-xy-kp">Kp<span class="val">1.200</span></label>
+      <input type="range" id="pos-xy-kp" min="0" max="5" step="0.05" value="1.2">
+    </div>
+    <div class="slider-row">
+      <label for="pos-xy-ki">Ki<span class="val">0.050</span></label>
+      <input type="range" id="pos-xy-ki" min="0" max="1" step="0.01" value="0.05">
+    </div>
+    <div class="slider-row">
+      <label for="pos-xy-kd">Kd<span class="val">0.600</span></label>
+      <input type="range" id="pos-xy-kd" min="0" max="3" step="0.05" value="0.6">
+    </div>
+
+    <div class="section-title">位置 Z (高度)</div>
+    <div class="slider-row">
+      <label for="pos-z-kp">Kp<span class="val">4.000</span></label>
+      <input type="range" id="pos-z-kp" min="0" max="10" step="0.1" value="4.0">
+    </div>
+    <div class="slider-row">
+      <label for="pos-z-ki">Ki<span class="val">0.500</span></label>
+      <input type="range" id="pos-z-ki" min="0" max="2" step="0.05" value="0.5">
+    </div>
+    <div class="slider-row">
+      <label for="pos-z-kd">Kd<span class="val">1.500</span></label>
+      <input type="range" id="pos-z-kd" min="0" max="5" step="0.1" value="1.5">
+    </div>
+
+    <div class="section-title">姿勢 Roll/Pitch</div>
+    <div class="slider-row">
+      <label for="att-rp-kp">Kp<span class="val">7.000</span></label>
+      <input type="range" id="att-rp-kp" min="0" max="20" step="0.1" value="7.0">
+    </div>
+    <div class="slider-row">
+      <label for="att-rp-ki">Ki<span class="val">0.000</span></label>
+      <input type="range" id="att-rp-ki" min="0" max="2" step="0.05" value="0.0">
+    </div>
+    <div class="slider-row">
+      <label for="att-rp-kd">Kd<span class="val">0.800</span></label>
+      <input type="range" id="att-rp-kd" min="0" max="3" step="0.05" value="0.8">
+    </div>
+
+    <div class="section-title">姿勢 Yaw</div>
+    <div class="slider-row">
+      <label for="att-yaw-kp">Kp<span class="val">3.000</span></label>
+      <input type="range" id="att-yaw-kp" min="0" max="10" step="0.1" value="3.0">
+    </div>
+    <div class="slider-row">
+      <label for="att-yaw-ki">Ki<span class="val">0.000</span></label>
+      <input type="range" id="att-yaw-ki" min="0" max="1" step="0.01" value="0.0">
+    </div>
+    <div class="slider-row">
+      <label for="att-yaw-kd">Kd<span class="val">0.400</span></label>
+      <input type="range" id="att-yaw-kd" min="0" max="2" step="0.05" value="0.4">
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ Three.js キャンバス ══════════ -->
+<div id="canvas-container">
+  <div id="hud">
+    <div class="hud-title">QUADROTOR SIM</div>
+    <div>T: <span id="info-time">0.00 s</span></div>
+    <div>POS: <span id="info-pos">-</span></div>
+    <div>VEL: <span id="info-vel">-</span></div>
+    <div>ATT: <span id="info-att">-</span></div>
+    <div>ω:  <span id="info-omega">-</span></div>
+  </div>
+</div>
+
+<!-- ══════════ 右パネル ══════════ -->
+<div id="right-panel">
+
+  <!-- 機体パラメータ -->
+  <div class="card">
+    <h3>機体パラメータ</h3>
+    <div class="info-row">
+      <div class="info-label">質量</div>
+      <div class="info-value">1.0 kg</div>
+    </div>
+    <div class="info-row">
+      <div class="info-label">アーム長</div>
+      <div class="info-value">225 mm</div>
+    </div>
+    <div class="info-row">
+      <div class="info-label">Ixx/Iyy/Izz</div>
+      <div class="info-value">0.0196 / 0.0196 / 0.0264 kg·m²</div>
+    </div>
+    <div class="info-row">
+      <div class="info-label">Hover ω</div>
+      <div class="info-value" id="info-hover-omega">-</div>
+    </div>
+  </div>
+
+  <!-- 制御構造の説明 -->
+  <div class="card">
+    <h3>制御構造</h3>
+    <div style="color:#8892b0;font-size:10px;line-height:1.7">
+      カスケード PID<br>
+      ┌ 外側: 位置制御<br>
+      │  XY → φ,θ 目標<br>
+      │  Z  → 推力補正<br>
+      └ 内側: 姿勢制御<br>
+      &nbsp;&nbsp; φ,θ,ψ → τx,τy,τz<br>
+      <br>
+      制御割り当て:<br>
+      [T,τ] → [ω1²..ω4²]
+    </div>
+  </div>
+
+  <!-- 凡例 -->
+  <div class="card">
+    <h3>凡例</h3>
+    <div style="color:#8892b0;font-size:10px;line-height:1.8">
+      <span style="color:#ff4444">●</span> M1 前 (CCW)<br>
+      <span style="color:#44ff44">●</span> M2 左 (CW)<br>
+      <span style="color:#4444ff">●</span> M3 後 (CCW)<br>
+      <span style="color:#ffff44">●</span> M4 右 (CW)<br>
+      <span style="color:#ff8800">◯</span> セットポイント<br>
+      <span style="color:#00aaff">─</span> 軌跡<br>
+      <span style="color:#00ffff">→</span> 速度ベクトル<br>
+      <span style="color:#ff0000">●</span> 前方 LED
+    </div>
+  </div>
+
+  <!-- 操作ヒント -->
+  <div class="card">
+    <h3>操作</h3>
+    <div style="color:#8892b0;font-size:10px;line-height:1.8">
+      マウスドラッグ: 回転<br>
+      右ドラッグ: 平行移動<br>
+      スクロール: ズーム
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="src/main.js"></script>
+
+<script>
+  // ホバリング角速度を表示
+  window.addEventListener('load', () => {
+    // QuadrotorModel の DEFAULT_PARAMS から計算
+    const kT = 1.269e-5, m = 1.0, g = 9.81;
+    const hoverOmega = Math.sqrt(m * g / (4 * kT));
+    const el = document.getElementById('info-hover-omega');
+    if (el) el.textContent = hoverOmega.toFixed(0) + ' rad/s (' + (hoverOmega * 60 / (2 * Math.PI)).toFixed(0) + ' RPM)';
+  });
+</script>
+
+</body>
+</html>
