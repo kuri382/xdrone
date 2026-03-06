@@ -161,15 +161,16 @@ function applyGainsFromUI() {
 $('btn-wind-x')?.addEventListener('click', () => disturbance.setWind(3, 0, 0));
 $('btn-wind-y')?.addEventListener('click', () => disturbance.setWind(0, 3, 0));
 $('btn-gust')?.addEventListener('click', () => {
-  const sign  = () => Math.random() < 0.5 ? 1 : -1;
-  const mag   = 4 + Math.random() * 12;          // 4〜16 N
+  // 現実的な突風パラメータ (1kg クラス機体想定)
+  // Beaufort scale 3〜5 相当: ドローン運用上限の軽〜中程度の突風
+  const mag   = 0.5 + Math.random() * 3.0;       // 0.5〜3.5 N (横力)
   const angle = Math.random() * Math.PI * 2;     // 水平方向ランダム
   disturbance.addGust({
-    fx:       Math.cos(angle) * mag * sign(),
-    fy:       Math.sin(angle) * mag * sign(),
-    fz:       (Math.random() - 0.3) * 4,          // 上下方向も少し
-    tz:       (Math.random() - 0.5) * 0.4,        // ヨー方向トルク
-    duration: 0.1 + Math.random() * 0.4,          // 0.1〜0.5 s
+    fx:       Math.cos(angle) * mag,
+    fy:       Math.sin(angle) * mag,
+    fz:       (Math.random() - 0.5) * 0.8,        // 上下 ±0.4 N 程度
+    tz:       (Math.random() - 0.5) * 0.03,       // ヨートルク (物理上限 ~0.1 N·m に対し微小)
+    duration: 0.3 + Math.random() * 1.0,          // 0.3〜1.3 s
   });
 });
 $('btn-turb')  ?.addEventListener('click', () => {

@@ -20,8 +20,8 @@ import { STATE_IDX } from '../physics/QuadrotorModel.js';
 export const DEFAULT_GAINS = {
   // 位置ループ (外側)
   pos: {
-    xy: { kp: 2.05, ki: 1.0,  kd: 3.0  },
-    z:  { kp: 10.0, ki: 1.75, kd: 4.8  },
+    xy: { kp: 0.6,  ki: 2.95, kd: 3.0  },
+    z:  { kp: 14.7, ki: 2.95, kd: 4.8  },
   },
   // 姿勢ループ (内側)
   att: {
@@ -29,7 +29,7 @@ export const DEFAULT_GAINS = {
     pitch: { kp: 8.8,  ki: 1.85, kd: 3.0  },
     // ヨー: 物理的に出せる最大トルクが ~0.1 N·m のため、
     // outputMax を合わせてスケールしたゲインを使う
-    yaw:   { kp: 3.0,  ki: 0.1,  kd: 0.5  },
+    yaw:   { kp: 3.0,  ki: 1.33, kd: 1.85 },
   },
 };
 
