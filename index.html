@@ -1,398 +1,755 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quadrotor Simulator</title>
+  <title>XDRONE — Flight Simulator</title>
 
-  <!-- Three.js (importmap) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+
   <script type="importmap">
   {
     "imports": {
-      "three":          "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-      "three/addons/":  "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+      "three":         "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
     }
   }
   </script>
 
   <style>
-    /* ── リセット ── */
+    /* ── Design tokens ───────────────────────────────────────────────── */
+    :root {
+      --bg:          #eef0f4;
+      --bg-2:        #e4e8ed;
+      --border:      #b8bec8;
+      --border-dim:  rgba(184, 190, 200, 0.35);
+      --cyan:        #3db8c8;
+      --cyan-dim:    rgba(61, 184, 200, 0.14);
+      --text-1:      #1a2030;
+      --text-2:      #505870;
+      --text-3:      #8a92a8;
+      --amber:       #c87828;
+      --amber-dim:   rgba(200, 120, 40, 0.12);
+    }
+
+    /* ── Reset ───────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0d0d1a;
-      color: #ccd6f6;
-      font-family: 'Courier New', monospace;
+      background: var(--bg);
+      color: var(--text-1);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 300;
       font-size: 12px;
       display: flex;
+      flex-direction: column;
       height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Corner-bracket frame ────────────────────────────────────────── */
+    .frame {
+      position: relative;
+      background-color: rgba(255, 255, 255, 0.30);
+      background-image:
+        linear-gradient(var(--cyan), var(--cyan)),
+        linear-gradient(var(--cyan), var(--cyan)),
+        linear-gradient(var(--cyan), var(--cyan)),
+        linear-gradient(var(--cyan), var(--cyan)),
+        linear-gradient(var(--cyan), var(--cyan)),
+        linear-gradient(var(--cyan), var(--cyan)),
+        linear-gradient(var(--cyan), var(--cyan)),
+        linear-gradient(var(--cyan), var(--cyan));
+      background-size:
+        10px 1px, 1px 10px,
+        10px 1px, 1px 10px,
+        10px 1px, 1px 10px,
+        10px 1px, 1px 10px;
+      background-position:
+        top left,    top left,
+        top right,   top right,
+        bottom left, bottom left,
+        bottom right, bottom right;
+      background-repeat: no-repeat;
+      padding: 14px 16px;
+    }
+
+    /* ── Top bar ─────────────────────────────────────────────────────── */
+    #topbar {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--border-dim);
+      flex-shrink: 0;
+      background: rgba(238, 240, 244, 0.95);
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      color: var(--text-1);
+      margin-right: 28px;
+      white-space: nowrap;
+    }
+    .logo-mark { color: var(--cyan); margin-right: 6px; }
+
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-right: auto;
+    }
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+    .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+    .dot.active { background: var(--cyan); }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: 28px;
+    }
+
+    .sim-time {
+      font: 300 13px/1 'JetBrains Mono', monospace;
+      color: var(--text-2);
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+    .sim-time-label {
+      font-size: 10px;
+      letter-spacing: 0.10em;
+      color: var(--text-3);
+      margin-right: 5px;
+    }
+
+    /* ── Main layout ─────────────────────────────────────────────────── */
+    #main {
+      flex: 1;
+      display: flex;
       overflow: hidden;
     }
 
-    /* ── レイアウト ── */
-    #left-panel {
-      width: 240px;
-      min-width: 240px;
-      background: #111130;
-      border-right: 1px solid #2a2a5a;
+    /* ── Side panels ─────────────────────────────────────────────────── */
+    .panel {
+      width: 216px;
+      flex-shrink: 0;
       overflow-y: auto;
-      padding: 8px;
+      overflow-x: hidden;
+      padding: 16px 14px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 16px;
+    }
+    .panel::-webkit-scrollbar       { width: 3px; }
+    .panel::-webkit-scrollbar-track { background: transparent; }
+    .panel::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 2px; }
+
+    /* ── Section label ───────────────────────────────────────────────── */
+    .sec-label {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 10px;
     }
 
+    /* ── Canvas container ────────────────────────────────────────────── */
     #canvas-container {
       flex: 1;
       position: relative;
+      overflow: hidden;
     }
+    #canvas-container canvas { display: block; }
 
-    #right-panel {
-      width: 200px;
-      min-width: 200px;
-      background: #111130;
-      border-left: 1px solid #2a2a5a;
-      overflow-y: auto;
-      padding: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    /* ── カード ── */
-    .card {
-      background: #1a1a3a;
-      border: 1px solid #2a2a5a;
-      border-radius: 4px;
-      padding: 8px;
-    }
-    .card h3 {
-      color: #64ffda;
-      font-size: 11px;
-      letter-spacing: 1px;
+    /* ── Buttons ─────────────────────────────────────────────────────── */
+    .btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 6px 14px;
+      font: 300 10px/1 'Inter', system-ui;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      margin-bottom: 6px;
-      border-bottom: 1px solid #2a2a5a;
-      padding-bottom: 4px;
-    }
-
-    /* ── ボタン ── */
-    .btn-row {
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-    button {
-      background: #1e1e4a;
-      color: #8892b0;
-      border: 1px solid #3a3a6a;
-      border-radius: 3px;
-      padding: 5px 8px;
       cursor: pointer;
-      font-size: 11px;
-      font-family: inherit;
-      transition: all 0.15s;
+      transition: border-color 0.12s, color 0.12s, background 0.12s;
+      white-space: nowrap;
     }
-    button:hover:not(:disabled)  { background: #2a2a6a; color: #ccd6f6; }
-    button:disabled               { opacity: 0.4; cursor: default; }
-    button.primary                { background: #0d4f3a; color: #64ffda; border-color: #64ffda44; }
-    button.primary:hover          { background: #1a7a5a; }
-    button.danger                 { background: #4f0d0d; color: #ff6464; border-color: #ff644444; }
-    button.danger:hover           { background: #7a1a1a; }
-    button.active                 { background: #4f3a0d; color: #ffda64; border-color: #ffda6444; }
+    .btn:hover:not(:disabled) {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: var(--cyan-dim);
+    }
+    .btn.primary {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+    .btn.primary:hover:not(:disabled) {
+      background: var(--cyan);
+      color: #fff;
+    }
+    .btn:disabled { opacity: 0.28; cursor: default; }
+    .btn.on {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: var(--amber-dim);
+    }
 
-    /* ── スライダ ── */
-    .slider-row {
+    /* ── Setpoint sliders ────────────────────────────────────────────── */
+    .sp-row {
       display: flex;
       align-items: center;
-      gap: 4px;
-      margin-bottom: 3px;
+      gap: 8px;
+      margin-bottom: 12px;
     }
-    .slider-row label {
-      width: 80px;
+    .sp-row:last-child { margin-bottom: 0; }
+    .sp-axis {
+      font: 400 10px/1 'Inter', system-ui;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      width: 10px;
       flex-shrink: 0;
-      color: #8892b0;
     }
-    .slider-row label .val {
-      color: #64ffda;
-      margin-left: 2px;
-    }
-    .slider-row input[type=range] {
+    .sp-slider-wrap {
       flex: 1;
-      height: 4px;
-      accent-color: #64ffda;
+      display: flex;
+      align-items: center;
+    }
+    .sp-val-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+    /* number input for setpoint */
+    .sp-num {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border-dim);
+      color: var(--amber);
+      font: 300 11px/1 'JetBrains Mono', monospace;
+      width: 48px;
+      text-align: right;
+      outline: none;
+      -moz-appearance: textfield;
+      appearance: textfield;
+      padding: 1px 0;
+    }
+    .sp-num::-webkit-inner-spin-button,
+    .sp-num::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .sp-num:focus { border-bottom-color: var(--amber); }
+    .sp-unit {
+      font: 300 9px/1 'Inter', system-ui;
+      color: var(--text-3);
     }
 
-    /* ── セットポイント ── */
-    .sp-row {
+    /* ── Disturbance buttons ─────────────────────────────────────────── */
+    .btn-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 3px;
+      gap: 5px;
+    }
+
+    /* ── PID gain compact grid ───────────────────────────────────────── */
+    .gains-grid {
+      display: grid;
+      grid-template-columns: 28px repeat(3, 1fr);
+      gap: 8px 7px;
+      align-items: end;
+    }
+    .g-head {
+      font: 300 9px/1 'Inter', system-ui;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      text-align: center;
+      padding-bottom: 2px;
+      border-bottom: 1px solid var(--border-dim);
+    }
+    .g-row-label {
+      font: 400 9px/1 'Inter', system-ui;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-2);
+      display: flex;
+      align-items: flex-end;
+      padding-bottom: 4px;
+    }
+    .g-cell {
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      margin-bottom: 2px;
+      gap: 3px;
+      cursor: pointer;
     }
-    .sp-row label { color: #8892b0; }
-    .sp-row input[type=range] { accent-color: #ff9f43; }
-    .sp-val { color: #ff9f43; text-align: right; }
+    .g-cell .val {
+      font: 300 9px/1 'JetBrains Mono', monospace;
+      color: var(--cyan);
+    }
+    .g-spacer { height: 4px; grid-column: 1 / -1; }
 
-    /* ── 状態情報 ── */
-    .info-row {
-      margin-bottom: 4px;
+    /* ── Range inputs ────────────────────────────────────────────────── */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 1px;
+      background: var(--border);
+      outline: none;
+      cursor: pointer;
     }
-    .info-label {
-      color: #64ffda;
-      font-size: 10px;
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--cyan);
+      border: none;
+    }
+    input[type=range]:focus::-webkit-slider-thumb {
+      box-shadow: 0 0 0 2px var(--cyan-dim);
+    }
+    /* Amber for setpoint sliders */
+    .sp-slider-wrap input[type=range]::-webkit-slider-thumb { background: var(--amber); }
+    .sp-slider-wrap input[type=range] { background: linear-gradient(var(--border), var(--border)); }
+
+    /* ── Telemetry rows ──────────────────────────────────────────────── */
+    .telem-block {
+      margin-bottom: 12px;
+    }
+    .telem-block:last-child { margin-bottom: 0; }
+    .telem-block-label {
+      font: 300 9px/1 'Inter', system-ui;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      color: var(--text-3);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .info-value {
-      color: #ccd6f6;
-      font-size: 11px;
-      word-break: break-all;
+    .telem-block-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-dim);
     }
-
-    /* ── HUDオーバーレイ (キャンバス上) ── */
-    #hud {
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      pointer-events: none;
-      color: #64ffda88;
-      font-size: 11px;
-      line-height: 1.6;
+    .telem-rows {
+      display: grid;
+      grid-template-columns: 12px 1fr;
+      gap: 4px 8px;
+      align-items: baseline;
     }
-    #hud .hud-title {
-      color: #64ffdacc;
-      font-weight: bold;
-      font-size: 13px;
-      margin-bottom: 2px;
-    }
-
-    /* ── スクロールバー ── */
-    ::-webkit-scrollbar       { width: 4px; }
-    ::-webkit-scrollbar-track { background: #0d0d1a; }
-    ::-webkit-scrollbar-thumb { background: #2a2a5a; border-radius: 2px; }
-
-    /* ── セクション区切り ── */
-    .section-title {
-      color: #64ffda88;
-      font-size: 10px;
-      letter-spacing: 1px;
-      margin: 4px 0 2px;
+    .telem-axis {
+      font: 400 10px/1 'Inter', system-ui;
       text-transform: uppercase;
+      color: var(--text-3);
+      letter-spacing: 0.08em;
+    }
+    .telem-num {
+      font: 300 13px/1 'JetBrains Mono', monospace;
+      color: var(--text-1);
+      letter-spacing: 0.04em;
+    }
+
+    /* 4-column motor grid */
+    .motor-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px 10px;
+    }
+    .motor-item {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .motor-label {
+      font: 400 9px/1 'Inter', system-ui;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+    .motor-val {
+      font: 300 12px/1 'JetBrains Mono', monospace;
+      color: var(--text-1);
+    }
+
+    /* ── Vehicle params ──────────────────────────────────────────────── */
+    .param-rows {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px 10px;
+      align-items: baseline;
+    }
+    .param-label {
+      font: 300 10px/1 'Inter', system-ui;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+    .param-val {
+      font: 300 11px/1 'JetBrains Mono', monospace;
+      color: var(--text-2);
+    }
+
+    /* ── Divider ─────────────────────────────────────────────────────── */
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: var(--border-dim);
+    }
+
+    /* ── Legend (bottom of right panel) ─────────────────────────────── */
+    .legend-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font: 300 10px/1 'Inter', system-ui;
+      letter-spacing: 0.08em;
+      color: var(--text-3);
+    }
+    .legend-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .legend-line {
+      width: 14px;
+      height: 1px;
+      flex-shrink: 0;
+    }
+    .legend-wire {
+      width: 6px;
+      height: 6px;
+      border: 1px solid;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
   </style>
 </head>
 <body>
 
-<!-- ══════════ 左パネル ══════════ -->
-<div id="left-panel">
+<!-- ══════════════════════════════════════════════════════ TOP BAR -->
+<header id="topbar">
+  <div class="logo">
+    <span class="logo-mark">◈</span>XDRONE
+  </div>
 
-  <!-- 実行制御 -->
-  <div class="card">
-    <h3>シミュレーション</h3>
-    <div class="btn-row">
-      <button id="btn-start" class="primary">▶ 開始</button>
-      <button id="btn-pause" disabled>⏸ 停止</button>
-      <button id="btn-reset" class="danger">↺ リセット</button>
+  <div class="status-group">
+    <div class="status-item">
+      <span class="dot active" id="dot-sim"></span> SIM
+    </div>
+    <div class="status-item">
+      <span class="dot active"></span> CTRL
+    </div>
+    <div class="status-item">
+      <span class="dot active"></span> PHY
     </div>
   </div>
 
-  <!-- セットポイント -->
-  <div class="card">
-    <h3>セットポイント</h3>
-
-    <div class="sp-row">
-      <label for="sp-x">X [m]</label>
-      <span class="sp-val"><span id="sp-x-val">0.0</span> m</span>
-    </div>
-    <input type="range" id="sp-x" min="-10" max="10" step="0.1" value="0" style="width:100%;accent-color:#ff9f43;margin-bottom:4px">
-
-    <div class="sp-row">
-      <label for="sp-y">Y [m]</label>
-      <span class="sp-val"><span id="sp-y-val">0.0</span> m</span>
-    </div>
-    <input type="range" id="sp-y" min="-10" max="10" step="0.1" value="0" style="width:100%;accent-color:#ff9f43;margin-bottom:4px">
-
-    <div class="sp-row">
-      <label for="sp-z">Z [m] (高度)</label>
-      <span class="sp-val"><span id="sp-z-val">1.0</span> m</span>
-    </div>
-    <input type="range" id="sp-z" min="0" max="10" step="0.1" value="1" style="width:100%;accent-color:#ff9f43;margin-bottom:4px">
-
-    <div class="sp-row">
-      <label for="sp-psi">Yaw [°]</label>
-      <span class="sp-val"><span id="sp-psi-val">0</span> °</span>
-    </div>
-    <input type="range" id="sp-psi" min="-180" max="180" step="1" value="0" style="width:100%;accent-color:#ff9f43">
+  <div class="ctrl-group">
+    <button id="btn-start" class="btn primary">RUN</button>
+    <button id="btn-pause" class="btn" disabled>HOLD</button>
+    <button id="btn-reset" class="btn">RST</button>
   </div>
 
-  <!-- 外乱 -->
-  <div class="card">
-    <h3>外乱注入</h3>
-    <div class="btn-row">
-      <button id="btn-wind-x">東風 +X</button>
-      <button id="btn-wind-y">北風 +Y</button>
-      <button id="btn-gust">突風</button>
-    </div>
-    <div class="btn-row" style="margin-top:4px">
-      <button id="btn-turb">乱流 OFF</button>
-      <button id="btn-clear-dist" class="danger">クリア</button>
-    </div>
+  <div class="sim-time">
+    <span class="sim-time-label">T+</span><span id="t-time">00:00.00</span>
   </div>
+</header>
 
-  <!-- PID ゲイン -->
-  <div class="card">
-    <h3>PID ゲイン</h3>
+<!-- ══════════════════════════════════════════════════════ MAIN -->
+<div id="main">
 
-    <div class="section-title">位置 XY</div>
-    <div class="slider-row">
-      <label for="pos-xy-kp">Kp<span class="val">1.200</span></label>
-      <input type="range" id="pos-xy-kp" min="0" max="5" step="0.05" value="1.2">
-    </div>
-    <div class="slider-row">
-      <label for="pos-xy-ki">Ki<span class="val">0.050</span></label>
-      <input type="range" id="pos-xy-ki" min="0" max="1" step="0.01" value="0.05">
-    </div>
-    <div class="slider-row">
-      <label for="pos-xy-kd">Kd<span class="val">0.600</span></label>
-      <input type="range" id="pos-xy-kd" min="0" max="3" step="0.05" value="0.6">
+  <!-- ── LEFT PANEL ──────────────────────────────────────────────── -->
+  <aside class="panel" id="left-panel">
+
+    <!-- TARGET -->
+    <div class="frame">
+      <div class="sec-label">Target</div>
+
+      <div class="sp-row">
+        <span class="sp-axis">X</span>
+        <span class="sp-slider-wrap">
+          <input type="range" id="sp-x" min="-10" max="10" step="0.1" value="0">
+        </span>
+        <span class="sp-val-wrap">
+          <input type="number" class="sp-num" id="sp-x-num" value="0.0" min="-10" max="10" step="0.1">
+          <span class="sp-unit">m</span>
+        </span>
+      </div>
+
+      <div class="sp-row">
+        <span class="sp-axis">Y</span>
+        <span class="sp-slider-wrap">
+          <input type="range" id="sp-y" min="-10" max="10" step="0.1" value="0">
+        </span>
+        <span class="sp-val-wrap">
+          <input type="number" class="sp-num" id="sp-y-num" value="0.0" min="-10" max="10" step="0.1">
+          <span class="sp-unit">m</span>
+        </span>
+      </div>
+
+      <div class="sp-row">
+        <span class="sp-axis">Z</span>
+        <span class="sp-slider-wrap">
+          <input type="range" id="sp-z" min="0" max="10" step="0.1" value="1">
+        </span>
+        <span class="sp-val-wrap">
+          <input type="number" class="sp-num" id="sp-z-num" value="1.0" min="0" max="10" step="0.1">
+          <span class="sp-unit">m</span>
+        </span>
+      </div>
+
+      <div class="sp-row">
+        <span class="sp-axis">ψ</span>
+        <span class="sp-slider-wrap">
+          <input type="range" id="sp-psi" min="-180" max="180" step="1" value="0">
+        </span>
+        <span class="sp-val-wrap">
+          <input type="number" class="sp-num" id="sp-psi-num" value="0" min="-180" max="180" step="1">
+          <span class="sp-unit">°</span>
+        </span>
+      </div>
     </div>
 
-    <div class="section-title">位置 Z (高度)</div>
-    <div class="slider-row">
-      <label for="pos-z-kp">Kp<span class="val">4.000</span></label>
-      <input type="range" id="pos-z-kp" min="0" max="10" step="0.1" value="4.0">
-    </div>
-    <div class="slider-row">
-      <label for="pos-z-ki">Ki<span class="val">0.500</span></label>
-      <input type="range" id="pos-z-ki" min="0" max="2" step="0.05" value="0.5">
-    </div>
-    <div class="slider-row">
-      <label for="pos-z-kd">Kd<span class="val">1.500</span></label>
-      <input type="range" id="pos-z-kd" min="0" max="5" step="0.1" value="1.5">
-    </div>
-
-    <div class="section-title">姿勢 Roll/Pitch</div>
-    <div class="slider-row">
-      <label for="att-rp-kp">Kp<span class="val">7.000</span></label>
-      <input type="range" id="att-rp-kp" min="0" max="20" step="0.1" value="7.0">
-    </div>
-    <div class="slider-row">
-      <label for="att-rp-ki">Ki<span class="val">0.000</span></label>
-      <input type="range" id="att-rp-ki" min="0" max="2" step="0.05" value="0.0">
-    </div>
-    <div class="slider-row">
-      <label for="att-rp-kd">Kd<span class="val">0.800</span></label>
-      <input type="range" id="att-rp-kd" min="0" max="3" step="0.05" value="0.8">
+    <!-- DISTURBANCE -->
+    <div class="frame">
+      <div class="sec-label">Disturbance</div>
+      <div class="btn-grid">
+        <button id="btn-wind-x" class="btn">E Wind</button>
+        <button id="btn-wind-y" class="btn">N Wind</button>
+        <button id="btn-gust"   class="btn">Gust</button>
+        <button id="btn-turb"   class="btn">Turb</button>
+      </div>
+      <div style="margin-top:7px">
+        <button id="btn-clear-dist" class="btn" style="width:100%">Clear All</button>
+      </div>
     </div>
 
-    <div class="section-title">姿勢 Yaw</div>
-    <div class="slider-row">
-      <label for="att-yaw-kp">Kp<span class="val">3.000</span></label>
-      <input type="range" id="att-yaw-kp" min="0" max="10" step="0.1" value="3.0">
-    </div>
-    <div class="slider-row">
-      <label for="att-yaw-ki">Ki<span class="val">0.000</span></label>
-      <input type="range" id="att-yaw-ki" min="0" max="1" step="0.01" value="0.0">
-    </div>
-    <div class="slider-row">
-      <label for="att-yaw-kd">Kd<span class="val">0.400</span></label>
-      <input type="range" id="att-yaw-kd" min="0" max="2" step="0.05" value="0.4">
-    </div>
-  </div>
+    <!-- PID GAINS -->
+    <div class="frame">
+      <div class="sec-label">PID Gains</div>
 
-</div>
+      <div class="gains-grid">
+        <!-- header -->
+        <span class="g-head"></span>
+        <span class="g-head">kP</span>
+        <span class="g-head">kI</span>
+        <span class="g-head">kD</span>
 
-<!-- ══════════ Three.js キャンバス ══════════ -->
-<div id="canvas-container">
-  <div id="hud">
-    <div class="hud-title">QUADROTOR SIM</div>
-    <div>T: <span id="info-time">0.00 s</span></div>
-    <div>POS: <span id="info-pos">-</span></div>
-    <div>VEL: <span id="info-vel">-</span></div>
-    <div>ATT: <span id="info-att">-</span></div>
-    <div>ω:  <span id="info-omega">-</span></div>
-  </div>
-</div>
+        <!-- POS XY -->
+        <span class="g-row-label">XY</span>
+        <label for="pos-xy-kp" class="g-cell">
+          <span class="val">1.200</span>
+          <input type="range" id="pos-xy-kp" min="0" max="5"  step="0.05" value="1.2">
+        </label>
+        <label for="pos-xy-ki" class="g-cell">
+          <span class="val">0.050</span>
+          <input type="range" id="pos-xy-ki" min="0" max="1"  step="0.01" value="0.05">
+        </label>
+        <label for="pos-xy-kd" class="g-cell">
+          <span class="val">0.600</span>
+          <input type="range" id="pos-xy-kd" min="0" max="3"  step="0.05" value="0.6">
+        </label>
 
-<!-- ══════════ 右パネル ══════════ -->
-<div id="right-panel">
+        <!-- POS Z -->
+        <span class="g-row-label">Z</span>
+        <label for="pos-z-kp" class="g-cell">
+          <span class="val">4.000</span>
+          <input type="range" id="pos-z-kp" min="0" max="10" step="0.1"  value="4.0">
+        </label>
+        <label for="pos-z-ki" class="g-cell">
+          <span class="val">0.500</span>
+          <input type="range" id="pos-z-ki" min="0" max="2"  step="0.05" value="0.5">
+        </label>
+        <label for="pos-z-kd" class="g-cell">
+          <span class="val">1.500</span>
+          <input type="range" id="pos-z-kd" min="0" max="5"  step="0.1"  value="1.5">
+        </label>
 
-  <!-- 機体パラメータ -->
-  <div class="card">
-    <h3>機体パラメータ</h3>
-    <div class="info-row">
-      <div class="info-label">質量</div>
-      <div class="info-value">1.0 kg</div>
-    </div>
-    <div class="info-row">
-      <div class="info-label">アーム長</div>
-      <div class="info-value">225 mm</div>
-    </div>
-    <div class="info-row">
-      <div class="info-label">Ixx/Iyy/Izz</div>
-      <div class="info-value">0.0196 / 0.0196 / 0.0264 kg·m²</div>
-    </div>
-    <div class="info-row">
-      <div class="info-label">Hover ω</div>
-      <div class="info-value" id="info-hover-omega">-</div>
-    </div>
-  </div>
+        <!-- ATT ROLL/PITCH -->
+        <span class="g-row-label">RP</span>
+        <label for="att-rp-kp" class="g-cell">
+          <span class="val">7.000</span>
+          <input type="range" id="att-rp-kp" min="0" max="20" step="0.1"  value="7.0">
+        </label>
+        <label for="att-rp-ki" class="g-cell">
+          <span class="val">0.000</span>
+          <input type="range" id="att-rp-ki" min="0" max="2"  step="0.05" value="0.0">
+        </label>
+        <label for="att-rp-kd" class="g-cell">
+          <span class="val">0.800</span>
+          <input type="range" id="att-rp-kd" min="0" max="3"  step="0.05" value="0.8">
+        </label>
 
-  <!-- 制御構造の説明 -->
-  <div class="card">
-    <h3>制御構造</h3>
-    <div style="color:#8892b0;font-size:10px;line-height:1.7">
-      カスケード PID<br>
-      ┌ 外側: 位置制御<br>
-      │  XY → φ,θ 目標<br>
-      │  Z  → 推力補正<br>
-      └ 内側: 姿勢制御<br>
-      &nbsp;&nbsp; φ,θ,ψ → τx,τy,τz<br>
-      <br>
-      制御割り当て:<br>
-      [T,τ] → [ω1²..ω4²]
+        <!-- ATT YAW -->
+        <span class="g-row-label">YW</span>
+        <label for="att-yaw-kp" class="g-cell">
+          <span class="val">3.000</span>
+          <input type="range" id="att-yaw-kp" min="0" max="10" step="0.1"  value="3.0">
+        </label>
+        <label for="att-yaw-ki" class="g-cell">
+          <span class="val">0.000</span>
+          <input type="range" id="att-yaw-ki" min="0" max="1"  step="0.01" value="0.0">
+        </label>
+        <label for="att-yaw-kd" class="g-cell">
+          <span class="val">0.400</span>
+          <input type="range" id="att-yaw-kd" min="0" max="2"  step="0.05" value="0.4">
+        </label>
+      </div>
     </div>
-  </div>
 
-  <!-- 凡例 -->
-  <div class="card">
-    <h3>凡例</h3>
-    <div style="color:#8892b0;font-size:10px;line-height:1.8">
-      <span style="color:#ff4444">●</span> M1 前 (CCW)<br>
-      <span style="color:#44ff44">●</span> M2 左 (CW)<br>
-      <span style="color:#4444ff">●</span> M3 後 (CCW)<br>
-      <span style="color:#ffff44">●</span> M4 右 (CW)<br>
-      <span style="color:#ff8800">◯</span> セットポイント<br>
-      <span style="color:#00aaff">─</span> 軌跡<br>
-      <span style="color:#00ffff">→</span> 速度ベクトル<br>
-      <span style="color:#ff0000">●</span> 前方 LED
+  </aside>
+
+  <!-- ── 3D VIEWPORT ───────────────────────────────────────────────── -->
+  <div id="canvas-container"></div>
+
+  <!-- ── RIGHT PANEL ─────────────────────────────────────────────────── -->
+  <aside class="panel" id="right-panel">
+
+    <!-- TELEMETRY -->
+    <div class="frame">
+      <div class="sec-label">Telemetry</div>
+
+      <!-- POSITION -->
+      <div class="telem-block">
+        <div class="telem-block-label">Pos <span style="color:var(--text-3);font-size:8px;letter-spacing:0.06em">m</span></div>
+        <div class="telem-rows">
+          <span class="telem-axis">X</span><span class="telem-num" id="t-x">  0.000</span>
+          <span class="telem-axis">Y</span><span class="telem-num" id="t-y">  0.000</span>
+          <span class="telem-axis">Z</span><span class="telem-num" id="t-z">  0.000</span>
+        </div>
+      </div>
+
+      <!-- VELOCITY -->
+      <div class="telem-block">
+        <div class="telem-block-label">Vel <span style="color:var(--text-3);font-size:8px;letter-spacing:0.06em">m/s</span></div>
+        <div class="telem-rows">
+          <span class="telem-axis">X</span><span class="telem-num" id="t-vx">  0.000</span>
+          <span class="telem-axis">Y</span><span class="telem-num" id="t-vy">  0.000</span>
+          <span class="telem-axis">Z</span><span class="telem-num" id="t-vz">  0.000</span>
+        </div>
+      </div>
+
+      <!-- ATTITUDE -->
+      <div class="telem-block">
+        <div class="telem-block-label">Att <span style="color:var(--text-3);font-size:8px;letter-spacing:0.06em">deg</span></div>
+        <div class="telem-rows">
+          <span class="telem-axis">φ</span><span class="telem-num" id="t-phi">   0.00</span>
+          <span class="telem-axis">θ</span><span class="telem-num" id="t-theta">   0.00</span>
+          <span class="telem-axis">ψ</span><span class="telem-num" id="t-psi">   0.00</span>
+        </div>
+      </div>
+
+      <!-- MOTORS -->
+      <div class="telem-block">
+        <div class="telem-block-label">Motors <span style="color:var(--text-3);font-size:8px;letter-spacing:0.06em">r/s</span></div>
+        <div class="motor-grid">
+          <div class="motor-item">
+            <span class="motor-label">M1</span>
+            <span class="motor-val" id="t-m1">0</span>
+          </div>
+          <div class="motor-item">
+            <span class="motor-label">M2</span>
+            <span class="motor-val" id="t-m2">0</span>
+          </div>
+          <div class="motor-item">
+            <span class="motor-label">M3</span>
+            <span class="motor-val" id="t-m3">0</span>
+          </div>
+          <div class="motor-item">
+            <span class="motor-label">M4</span>
+            <span class="motor-val" id="t-m4">0</span>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <!-- 操作ヒント -->
-  <div class="card">
-    <h3>操作</h3>
-    <div style="color:#8892b0;font-size:10px;line-height:1.8">
-      マウスドラッグ: 回転<br>
-      右ドラッグ: 平行移動<br>
-      スクロール: ズーム
+    <!-- VEHICLE PARAMS -->
+    <div class="frame">
+      <div class="sec-label">Vehicle</div>
+      <div class="param-rows">
+        <span class="param-label">Mass</span>
+        <span class="param-val">1.000 kg</span>
+        <span class="param-label">Arm</span>
+        <span class="param-val">225 mm</span>
+        <span class="param-label">Ixx</span>
+        <span class="param-val">0.0196 kg·m²</span>
+        <span class="param-label">Izz</span>
+        <span class="param-val">0.0264 kg·m²</span>
+        <span class="param-label">ω hover</span>
+        <span class="param-val" id="info-hover-omega">— r/s</span>
+      </div>
     </div>
-  </div>
 
-</div>
+    <!-- LEGEND -->
+    <div class="frame">
+      <div class="sec-label">Legend</div>
+      <div class="legend-rows">
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#2868a8"></span>M1/M3 CCW
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#1a3868"></span>M2/M4 CW
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background:#3db8c8"></span>Forward LED
+        </div>
+        <div class="legend-item">
+          <span class="legend-wire" style="border-color:#c87828"></span>Setpoint
+        </div>
+        <div class="legend-item">
+          <span class="legend-line" style="background:#3db8c8"></span>Trajectory
+        </div>
+        <div class="legend-item">
+          <span class="legend-line" style="background:#3db8c8;opacity:0.5"></span>Velocity
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+</div><!-- #main -->
 
 <script type="module" src="src/main.js"></script>
 
 <script>
   // ホバリング角速度を表示
   window.addEventListener('load', () => {
-    // QuadrotorModel の DEFAULT_PARAMS から計算
     const kT = 1.269e-5, m = 1.0, g = 9.81;
-    const hoverOmega = Math.sqrt(m * g / (4 * kT));
+    const hw = Math.sqrt(m * g / (4 * kT));
     const el = document.getElementById('info-hover-omega');
-    if (el) el.textContent = hoverOmega.toFixed(0) + ' rad/s (' + (hoverOmega * 60 / (2 * Math.PI)).toFixed(0) + ' RPM)';
+    if (el) el.textContent = hw.toFixed(0) + ' r/s  (' + (hw * 60 / (2 * Math.PI)).toFixed(0) + ' RPM)';
   });
 </script>
 

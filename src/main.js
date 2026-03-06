@@ -37,11 +37,11 @@ const spY   = $('sp-y');
 const spZ   = $('sp-z');
 const spPsi = $('sp-psi');
 
-const infoTime  = $('info-time');
-const infoPos   = $('info-pos');
-const infoVel   = $('info-vel');
-const infoAtt   = $('info-att');
-const infoOmega = $('info-omega');
+const tTime  = $('t-time');
+const tX = $('t-x');   const tY  = $('t-y');     const tZ     = $('t-z');
+const tVx = $('t-vx'); const tVy = $('t-vy');    const tVz    = $('t-vz');
+const tPhi = $('t-phi'); const tTheta = $('t-theta'); const tPsi = $('t-psi');
+const tM1 = $('t-m1'); const tM2 = $('t-m2');    const tM3    = $('t-m3'); const tM4 = $('t-m4');
 
 // PIDゲインスライダ
 const gainFields = [
@@ -110,12 +110,21 @@ function updateSetpoint() {
   const psi = parseFloat(spPsi?.value ?? 0) * Math.PI / 180;
   controller.setSetpoint({ x, y, z, psi });
 
-  // ラベル更新
-  const lx = $('sp-x-val');   if (lx) lx.textContent = x.toFixed(1);
-  const ly = $('sp-y-val');   if (ly) ly.textContent = y.toFixed(1);
-  const lz = $('sp-z-val');   if (lz) lz.textContent = z.toFixed(1);
-  const lp = $('sp-psi-val'); if (lp) lp.textContent = (psi * 180 / Math.PI).toFixed(0);
+  // number input に同期 (スライダ → 数値入力)
+  const nx = $('sp-x-num');   if (nx) nx.value = x.toFixed(1);
+  const ny = $('sp-y-num');   if (ny) ny.value = y.toFixed(1);
+  const nz = $('sp-z-num');   if (nz) nz.value = z.toFixed(1);
+  const np = $('sp-psi-num'); if (np) np.value = (psi * 180 / Math.PI).toFixed(0);
 }
+
+// 数値入力 → スライダ双方向同期
+[['sp-x-num', spX], ['sp-y-num', spY], ['sp-z-num', spZ], ['sp-psi-num', spPsi]].forEach(([numId, rangeEl]) => {
+  $(`${numId}`)?.addEventListener('input', () => {
+    const v = $(`${numId}`).value;
+    if (rangeEl) rangeEl.value = v;
+    updateSetpoint();
+  });
+});
 
 // PID ゲインスライダ変更
 gainFields.forEach((id) => {
@@ -145,18 +154,29 @@ function applyGainsFromUI() {
 // 外乱ボタン
 $('btn-wind-x')?.addEventListener('click', () => disturbance.setWind(3, 0, 0));
 $('btn-wind-y')?.addEventListener('click', () => disturbance.setWind(0, 3, 0));
-$('btn-gust')  ?.addEventListener('click', () => disturbance.addGust({ fx: 5, duration: 0.3 }));
+$('btn-gust')?.addEventListener('click', () => {
+  const sign  = () => Math.random() < 0.5 ? 1 : -1;
+  const mag   = 4 + Math.random() * 12;          // 4〜16 N
+  const angle = Math.random() * Math.PI * 2;     // 水平方向ランダム
+  disturbance.addGust({
+    fx:       Math.cos(angle) * mag * sign(),
+    fy:       Math.sin(angle) * mag * sign(),
+    fz:       (Math.random() - 0.3) * 4,          // 上下方向も少し
+    tz:       (Math.random() - 0.5) * 0.4,        // ヨー方向トルク
+    duration: 0.1 + Math.random() * 0.4,          // 0.1〜0.5 s
+  });
+});
 $('btn-turb')  ?.addEventListener('click', () => {
   const cur = disturbance._turbulence.intensity;
   disturbance.setTurbulence(cur > 0 ? 0 : 0.5);
   const el = $('btn-turb');
-  el.textContent = cur > 0 ? '乱流 OFF' : '乱流 ON';
-  el.classList.toggle('active', cur === 0);
+  el.textContent = 'Turb';
+  el.classList.toggle('on', cur === 0);
 });
 $('btn-clear-dist')?.addEventListener('click', () => {
   disturbance.clearAll();
   const el = $('btn-turb');
-  if (el) { el.textContent = '乱流 OFF'; el.classList.remove('active'); }
+  if (el) { el.textContent = 'Turb'; el.classList.remove('on'); }
 });
 
 // ── レンダーループ ────────────────────────────────────────────────────────
@@ -193,15 +213,23 @@ function animate(timestamp) {
 
 function updateHUD() {
   const snap = simulator.getSnapshot();
-  if (infoTime)  infoTime.textContent  = snap.time.toFixed(2) + ' s';
-  if (infoPos)   infoPos.textContent   =
-    `x:${snap.position.x.toFixed(2)} y:${snap.position.y.toFixed(2)} z:${snap.position.z.toFixed(2)}`;
-  if (infoVel)   infoVel.textContent   =
-    `vx:${snap.velocity.x.toFixed(2)} vy:${snap.velocity.y.toFixed(2)} vz:${snap.velocity.z.toFixed(2)}`;
-  if (infoAtt)   infoAtt.textContent   =
-    `φ:${snap.attitude.phi.toFixed(1)}° θ:${snap.attitude.theta.toFixed(1)}° ψ:${snap.attitude.psi.toFixed(1)}°`;
-  if (infoOmega) infoOmega.textContent =
-    snap.omega.map((o) => o.toFixed(0)).join(' / ') + ' rad/s';
+  const fmt3 = (v) => (v >= 0 ? '+' : '') + v.toFixed(3);
+  const fmt1 = (v) => (v >= 0 ? '+' : '') + v.toFixed(2);
+
+  if (tTime)  tTime.textContent  = snap.time.toFixed(2);
+  if (tX)     tX.textContent     = fmt3(snap.position.x);
+  if (tY)     tY.textContent     = fmt3(snap.position.y);
+  if (tZ)     tZ.textContent     = fmt3(snap.position.z);
+  if (tVx)    tVx.textContent    = fmt3(snap.velocity.x);
+  if (tVy)    tVy.textContent    = fmt3(snap.velocity.y);
+  if (tVz)    tVz.textContent    = fmt3(snap.velocity.z);
+  if (tPhi)   tPhi.textContent   = fmt1(snap.attitude.phi);
+  if (tTheta) tTheta.textContent = fmt1(snap.attitude.theta);
+  if (tPsi)   tPsi.textContent   = fmt1(snap.attitude.psi);
+  if (tM1)    tM1.textContent    = snap.omega[0].toFixed(0);
+  if (tM2)    tM2.textContent    = snap.omega[1].toFixed(0);
+  if (tM3)    tM3.textContent    = snap.omega[2].toFixed(0);
+  if (tM4)    tM4.textContent    = snap.omega[3].toFixed(0);
 }
 
 // ── 初期化 ────────────────────────────────────────────────────────────────
