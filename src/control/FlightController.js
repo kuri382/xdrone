@@ -20,14 +20,16 @@ import { STATE_IDX } from '../physics/QuadrotorModel.js';
 export const DEFAULT_GAINS = {
   // 位置ループ (外側)
   pos: {
-    xy: { kp: 1.0,  ki: 0.02, kd: 0.50 },
-    z:  { kp: 3.0,  ki: 0.10, kd: 1.20 },
+    xy: { kp: 2.05, ki: 1.0,  kd: 3.0  },
+    z:  { kp: 10.0, ki: 1.75, kd: 4.8  },
   },
   // 姿勢ループ (内側)
   att: {
-    roll:  { kp: 6.0,  ki: 0.0,  kd: 0.60 },
-    pitch: { kp: 6.0,  ki: 0.0,  kd: 0.60 },
-    yaw:   { kp: 2.0,  ki: 0.0,  kd: 0.30 },
+    roll:  { kp: 8.8,  ki: 1.85, kd: 3.0  },
+    pitch: { kp: 8.8,  ki: 1.85, kd: 3.0  },
+    // ヨー: 物理的に出せる最大トルクが ~0.1 N·m のため、
+    // outputMax を合わせてスケールしたゲインを使う
+    yaw:   { kp: 3.0,  ki: 0.1,  kd: 0.5  },
   },
 };
 
@@ -40,13 +42,23 @@ export class FlightController {
     this.model = model;
 
     // PID コントローラを生成
+    // 物理限界から出力上限を導出
+    // ロール/ピッチ最大トルク ≈ kT * l * 2 * ω²hover (ホバー時ペア変動分)
+    //   = 1.269e-5 * 0.225 * 2 * (mg/4kT) = ml²g/2 ≈ 1.1 N·m → マージン込み 1.5
+    // ヨー最大トルク ≈ 4 * kQ * ω²hover = 4 * kQ * mg/(4kT) = kQ*mg/kT
+    //   = 1.269e-7 * 9.81 / 1.269e-5 ≈ 0.098 N·m → マージン込み 0.08
+    const { kT, kQ, armLength: l } = model;
+    const hoverW2 = (model.mass * 9.81) / (4 * kT);
+    const maxRollPitchTau = kT * l * 2 * hoverW2 * 1.4; // 1.4 倍マージン
+    const maxYawTau       = 4 * kQ * hoverW2 * 0.8;     // 0.8 倍マージン (保守的)
+
     this._pid = {
       x:     new PIDController({ ...gains.pos.xy, outputMin: -Math.PI/6, outputMax: Math.PI/6 }),
       y:     new PIDController({ ...gains.pos.xy, outputMin: -Math.PI/6, outputMax: Math.PI/6 }),
       z:     new PIDController({ ...gains.pos.z,  outputMin: -model.mass * 9.81 * 0.9, outputMax: model.mass * 9.81 * 2 }),
-      roll:  new PIDController({ ...gains.att.roll,  outputMin: -5, outputMax: 5 }),
-      pitch: new PIDController({ ...gains.att.pitch, outputMin: -5, outputMax: 5 }),
-      yaw:   new PIDController({ ...gains.att.yaw,   outputMin: -3, outputMax: 3 }),
+      roll:  new PIDController({ ...gains.att.roll,  outputMin: -maxRollPitchTau, outputMax: maxRollPitchTau }),
+      pitch: new PIDController({ ...gains.att.pitch, outputMin: -maxRollPitchTau, outputMax: maxRollPitchTau }),
+      yaw:   new PIDController({ ...gains.att.yaw,   outputMin: -maxYawTau,       outputMax: maxYawTau }),
     };
 
     /** セットポイント */
