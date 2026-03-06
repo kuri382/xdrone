@@ -48,6 +48,9 @@ export class DroneVisualizer {
     this.model     = model;
     this._propAngle = [0, 0, 0, 0]; // プロペラ回転角 [rad]
 
+    this._autoFollow = false;
+    this._camTween   = null; // { startPos, startLook, startUp, tPos, tLook, tUp, elapsed, duration }
+
     this._initRenderer();
     this._initScene();
     this._initDroneMesh();
@@ -288,11 +291,82 @@ export class DroneVisualizer {
     // ── セットポイントマーカー ──────────────────────────────────────────
     this._spMarker.position.copy(enu2three(setpoint.x, setpoint.y, setpoint.z));
 
-    // ── カメラターゲット追従 (オプション) ─────────────────────────────
-    // OrbitControlsのターゲットをドローン位置に追従させる場合はここを有効化
-    // this.controls.target.lerp(pos, 0.05);
+    // ── カメラトゥイーン ────────────────────────────────────────────────
+    if (this._camTween) {
+      const t = this._camTween;
+      t.elapsed = Math.min(t.duration, t.elapsed + dt);
+      const p    = t.elapsed / t.duration;
+      const ease = 1 - Math.pow(1 - p, 3); // cubic ease-out
+      this.camera.position.lerpVectors(t.startPos,  t.tPos,  ease);
+      this.controls.target.lerpVectors(t.startLook, t.tLook, ease);
+      this.camera.up.lerpVectors(t.startUp, t.tUp, ease).normalize();
+      if (p >= 1) this._camTween = null;
+    }
+
+    // ── 自動追尾 ─────────────────────────────────────────────────────
+    if (this._autoFollow && !this._camTween) {
+      this.controls.target.lerp(pos, 0.04);
+    }
 
     this.controls.update();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // カメラ制御
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * カメラトゥイーン開始 (内部ヘルパー)
+   */
+  _startTween(tPos, tLook, tUp, duration = 0.8) {
+    this._camTween = {
+      startPos:  this.camera.position.clone(),
+      startLook: this.controls.target.clone(),
+      startUp:   this.camera.up.clone(),
+      tPos, tLook, tUp,
+      elapsed: 0, duration,
+    };
+  }
+
+  /**
+   * プリセットビューに切り替え
+   * @param {'xy'|'xz'|'yz'} preset
+   */
+  setCameraView(preset) {
+    this._autoFollow = false;
+    const D = 14;
+    const views = {
+      // TOP: 物理 XY 平面を上から俯瞰 (Three.js Y 軸上方から)
+      xy: { pos: new THREE.Vector3(0.001, 18, 0.001), look: new THREE.Vector3(0, 0, 0), up: new THREE.Vector3(1, 0, 0) },
+      // FRONT: 物理 XZ 平面 (Three.js +Z 方向から見る)
+      xz: { pos: new THREE.Vector3(0, 2, D),           look: new THREE.Vector3(0, 1, 0), up: new THREE.Vector3(0, 1, 0) },
+      // SIDE: 物理 YZ 平面 (Three.js +X 方向から見る)
+      yz: { pos: new THREE.Vector3(D, 2, 0),            look: new THREE.Vector3(0, 1, 0), up: new THREE.Vector3(0, 1, 0) },
+    };
+    const v = views[preset];
+    if (!v) return;
+    this._startTween(v.pos, v.look, v.up);
+  }
+
+  /**
+   * ドローンを画角に収める (FIT)
+   * @param {number[]} state 12次元状態ベクトル
+   */
+  fitView(state) {
+    this._autoFollow = false;
+    const dronePos = enu2three(state[0], state[1], state[2]);
+    const dist     = Math.max(6, dronePos.length() + 5);
+    const dir      = new THREE.Vector3(1, 0.8, 1).normalize();
+    const newPos   = dronePos.clone().addScaledVector(dir, dist);
+    this._startTween(newPos, dronePos.clone(), new THREE.Vector3(0, 1, 0));
+  }
+
+  /**
+   * 自動追尾トグル
+   * @param {boolean} enabled
+   */
+  setAutoFollow(enabled) {
+    this._autoFollow = enabled;
   }
 
   /**

@@ -415,6 +415,45 @@
       color: var(--text-2);
     }
 
+    /* ── Camera controls overlay ─────────────────────────────────────── */
+    #cam-controls {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    #cam-controls .cam-btn {
+      pointer-events: all;
+      background: rgba(238, 240, 244, 0.82);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 5px 11px;
+      font: 300 9px/1 'Inter', system-ui;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.12s, color 0.12s, background 0.12s;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      white-space: nowrap;
+      text-align: center;
+    }
+    #cam-controls .cam-btn:hover {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: var(--cyan-dim);
+    }
+    #cam-controls .cam-btn.on {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: var(--amber-dim);
+    }
+    #cam-controls .cam-sep { height: 5px; }
+
     /* ── Divider ─────────────────────────────────────────────────────── */
     .divider {
       width: 100%;
@@ -632,7 +671,16 @@
   </aside>
 
   <!-- ── 3D VIEWPORT ───────────────────────────────────────────────── -->
-  <div id="canvas-container"></div>
+  <div id="canvas-container">
+    <div id="cam-controls">
+      <button class="cam-btn" id="cam-xy"     title="Top view — XY plane">XY</button>
+      <button class="cam-btn" id="cam-xz"     title="Front view — XZ plane">XZ</button>
+      <button class="cam-btn" id="cam-yz"     title="Side view — YZ plane">YZ</button>
+      <div class="cam-sep"></div>
+      <button class="cam-btn" id="cam-fit"    title="Fit drone in view">FIT</button>
+      <button class="cam-btn" id="cam-follow" title="Auto-follow drone">FOLLOW</button>
+    </div>
+  </div>
 
   <!-- ── RIGHT PANEL ─────────────────────────────────────────────────── -->
   <aside class="panel" id="right-panel">

@@ -179,6 +179,17 @@ $('btn-clear-dist')?.addEventListener('click', () => {
   if (el) { el.textContent = 'Turb'; el.classList.remove('on'); }
 });
 
+// ── カメラコントロール ─────────────────────────────────────────────────────
+$('cam-xy')?.addEventListener('click', () => visualizer.setCameraView('xy'));
+$('cam-xz')?.addEventListener('click', () => visualizer.setCameraView('xz'));
+$('cam-yz')?.addEventListener('click', () => visualizer.setCameraView('yz'));
+$('cam-fit')?.addEventListener('click', () => visualizer.fitView(simulator.state));
+$('cam-follow')?.addEventListener('click', () => {
+  const enabled = !visualizer._autoFollow;
+  visualizer.setAutoFollow(enabled);
+  $('cam-follow').classList.toggle('on', enabled);
+});
+
 // ── レンダーループ ────────────────────────────────────────────────────────
 
 let prevTime = null;
