@@ -51,12 +51,20 @@ export class DroneVisualizer {
     this._autoFollow = false;
     this._camTween   = null; // { startPos, startLook, startUp, tPos, tLook, tUp, elapsed, duration }
 
+    this._moveTargetMode = false;
+    this._isDragging     = false;
+    this._targetPlane    = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // y = setpoint.z
+    this._raycaster      = new THREE.Raycaster();
+    /** @type {((x:number,y:number,z:number)=>void)|null} */
+    this.onTargetMove    = null;
+
     this._initRenderer();
     this._initScene();
     this._initDroneMesh();
     this._initTrajectory();
     this._initSetpointMarker();
     this._initHUD();
+    this._initTargetDrag();
 
     window.addEventListener('resize', () => this._onResize());
   }
@@ -290,6 +298,8 @@ export class DroneVisualizer {
 
     // ── セットポイントマーカー ──────────────────────────────────────────
     this._spMarker.position.copy(enu2three(setpoint.x, setpoint.y, setpoint.z));
+    // ターゲット平面をセットポイント高さに合わせる (Three.js y = 物理 z)
+    this._targetPlane.constant = -setpoint.z;
 
     // ── カメラトゥイーン ────────────────────────────────────────────────
     if (this._camTween) {
@@ -367,6 +377,62 @@ export class DroneVisualizer {
    */
   setAutoFollow(enabled) {
     this._autoFollow = enabled;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ターゲットドラッグ
+  // ─────────────────────────────────────────────────────────────────────────
+
+  _initTargetDrag() {
+    const canvas = this.renderer.domElement;
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (!this._moveTargetMode || e.button !== 0) return;
+      e.stopPropagation();
+      this._isDragging = true;
+      this.controls.enabled = false;
+      this.container.classList.add('dragging');
+      this._updateTargetFromMouse(e);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!this._isDragging) return;
+      this._updateTargetFromMouse(e);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!this._isDragging) return;
+      this._isDragging = false;
+      this.controls.enabled = true;
+      this.container.classList.remove('dragging');
+    });
+  }
+
+  _updateTargetFromMouse(e) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const nx   = ((e.clientX - rect.left) / rect.width)  *  2 - 1;
+    const ny   = ((e.clientY - rect.top)  / rect.height) * -2 + 1;
+
+    this._raycaster.setFromCamera(new THREE.Vector2(nx, ny), this.camera);
+    const hit = new THREE.Vector3();
+    if (!this._raycaster.ray.intersectPlane(this._targetPlane, hit)) return;
+
+    // Three.js (x, y, z) → 物理 ENU (x=x, y=-z, z=y)
+    if (this.onTargetMove) this.onTargetMove(hit.x, -hit.z, hit.y);
+  }
+
+  /**
+   * ターゲットドラッグモードをトグル
+   * @param {boolean} enabled
+   */
+  setMoveTargetMode(enabled) {
+    this._moveTargetMode = enabled;
+    this.renderer.domElement.style.cursor = enabled ? 'crosshair' : '';
+    if (!enabled) {
+      this._isDragging = false;
+      this.controls.enabled = true;
+      this.container.classList.remove('dragging');
+    }
   }
 
   /**

@@ -201,14 +201,51 @@ $('gains-file-input')?.addEventListener('change', (e) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (ev) => {
+    const btn = $('btn-gains-import');
     try {
-      controller.setGains(JSON.parse(ev.target.result));
-      syncGainsToUI();
-    } catch { /* invalid JSON — 無視 */ }
+      const gains = JSON.parse(ev.target.result);
+      controller.setGains(gains);
+      // スライダー上限を超えた値にも対応するため、num input を直接更新してから再適用
+      const g = controller.getGains();
+      gainFields.forEach((id) => {
+        const slider = $(id);
+        const numEl  = $(`${id}-num`);
+        // ゲイン値をIDから解決
+        const val = {
+          'pos-xy-kp': g.pos.xy.kp, 'pos-xy-ki': g.pos.xy.ki, 'pos-xy-kd': g.pos.xy.kd,
+          'pos-z-kp':  g.pos.z.kp,  'pos-z-ki':  g.pos.z.ki,  'pos-z-kd':  g.pos.z.kd,
+          'att-rp-kp': g.att.roll.kp,'att-rp-ki': g.att.roll.ki,'att-rp-kd': g.att.roll.kd,
+          'att-yaw-kp':g.att.yaw.kp, 'att-yaw-ki':g.att.yaw.ki, 'att-yaw-kd':g.att.yaw.kd,
+        }[id];
+        if (val !== undefined) {
+          if (slider) slider.value = Math.min(parseFloat(slider.max), val);
+          if (numEl)  numEl.value  = parseFloat(val).toFixed(3);
+        }
+      });
+      if (btn) { btn.textContent = 'OK'; setTimeout(() => { btn.textContent = 'Import'; }, 1200); }
+    } catch(err) {
+      console.error('[gains import]', err);
+      if (btn) { btn.textContent = 'ERR'; setTimeout(() => { btn.textContent = 'Import'; }, 1500); }
+    }
   };
   reader.readAsText(file);
   e.target.value = '';
 });
+
+// ── ターゲットドラッグコールバック ─────────────────────────────────────────
+visualizer.onTargetMove = (px, py, pz) => {
+  const x   = Math.max(-10, Math.min(10, px));
+  const y   = Math.max(-10, Math.min(10, py));
+  const z   = Math.max(0,   Math.min(10, pz));
+  const psi = parseFloat(spPsi?.value ?? 0) * Math.PI / 180;
+  controller.setSetpoint({ x, y, z, psi });
+  if (spX) spX.value = x;
+  if (spY) spY.value = y;
+  if (spZ) spZ.value = z;
+  const nx = $('sp-x-num'); if (nx) nx.value = x.toFixed(1);
+  const ny = $('sp-y-num'); if (ny) ny.value = y.toFixed(1);
+  const nz = $('sp-z-num'); if (nz) nz.value = z.toFixed(1);
+};
 
 // ── カメラコントロール ─────────────────────────────────────────────────────
 $('cam-xy')?.addEventListener('click', () => visualizer.setCameraView('xy'));
@@ -219,6 +256,11 @@ $('cam-follow')?.addEventListener('click', () => {
   const enabled = !visualizer._autoFollow;
   visualizer.setAutoFollow(enabled);
   $('cam-follow').classList.toggle('on', enabled);
+});
+$('cam-move')?.addEventListener('click', () => {
+  const enabled = !visualizer._moveTargetMode;
+  visualizer.setMoveTargetMode(enabled);
+  $('cam-move').classList.toggle('on', enabled);
 });
 
 // ── レンダーループ ────────────────────────────────────────────────────────

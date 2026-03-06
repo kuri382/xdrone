@@ -466,6 +466,7 @@
       background: var(--amber-dim);
     }
     #cam-controls .cam-sep { height: 5px; }
+    #canvas-container.dragging canvas { cursor: grabbing !important; }
 
     /* ── Divider ─────────────────────────────────────────────────────── */
     .divider {
@@ -698,6 +699,8 @@
       <div class="cam-sep"></div>
       <button class="cam-btn" id="cam-fit"    title="Fit drone in view">FIT</button>
       <button class="cam-btn" id="cam-follow" title="Auto-follow drone">FOLLOW</button>
+      <div class="cam-sep"></div>
+      <button class="cam-btn" id="cam-move"   title="Drag to move target XY">MOVE</button>
     </div>
   </div>
 
