@@ -20,14 +20,14 @@ import { STATE_IDX } from '../physics/QuadrotorModel.js';
 export const DEFAULT_GAINS = {
   // 位置ループ (外側)
   pos: {
-    xy: { kp: 1.2,  ki: 0.05, kd: 0.6  },
-    z:  { kp: 4.0,  ki: 0.5,  kd: 1.5  },
+    xy: { kp: 1.0,  ki: 0.02, kd: 0.50 },
+    z:  { kp: 3.0,  ki: 0.10, kd: 1.20 },
   },
   // 姿勢ループ (内側)
   att: {
-    roll:  { kp: 7.0,  ki: 0.0,  kd: 0.8  },
-    pitch: { kp: 7.0,  ki: 0.0,  kd: 0.8  },
-    yaw:   { kp: 3.0,  ki: 0.0,  kd: 0.4  },
+    roll:  { kp: 6.0,  ki: 0.0,  kd: 0.60 },
+    pitch: { kp: 6.0,  ki: 0.0,  kd: 0.60 },
+    yaw:   { kp: 2.0,  ki: 0.0,  kd: 0.30 },
   },
 };
 

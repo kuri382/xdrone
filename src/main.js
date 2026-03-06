@@ -51,31 +51,29 @@ const gainFields = [
   'att-yaw-kp','att-yaw-ki','att-yaw-kd',
 ];
 
+// スライダ + 数値入力を同期してセット
+function setGainVal(id, val) {
+  const slider = $(id);
+  const numEl  = $(`${id}-num`);
+  if (slider) slider.value = val;
+  if (numEl)  numEl.value  = parseFloat(val).toFixed(3);
+}
+
 // 初期値を UI に反映
 function syncGainsToUI() {
   const g = controller.getGains();
-  setSliderVal('pos-xy-kp', g.pos.xy.kp);
-  setSliderVal('pos-xy-ki', g.pos.xy.ki);
-  setSliderVal('pos-xy-kd', g.pos.xy.kd);
-  setSliderVal('pos-z-kp',  g.pos.z.kp);
-  setSliderVal('pos-z-ki',  g.pos.z.ki);
-  setSliderVal('pos-z-kd',  g.pos.z.kd);
-  setSliderVal('att-rp-kp', g.att.roll.kp);
-  setSliderVal('att-rp-ki', g.att.roll.ki);
-  setSliderVal('att-rp-kd', g.att.roll.kd);
-  setSliderVal('att-yaw-kp',g.att.yaw.kp);
-  setSliderVal('att-yaw-ki',g.att.yaw.ki);
-  setSliderVal('att-yaw-kd',g.att.yaw.kd);
-}
-
-function setSliderVal(id, val) {
-  const el = $(id);
-  if (el) { el.value = val; updateSliderLabel(el); }
-}
-
-function updateSliderLabel(slider) {
-  const label = document.querySelector(`label[for="${slider.id}"] .val`);
-  if (label) label.textContent = parseFloat(slider.value).toFixed(3);
+  setGainVal('pos-xy-kp', g.pos.xy.kp);
+  setGainVal('pos-xy-ki', g.pos.xy.ki);
+  setGainVal('pos-xy-kd', g.pos.xy.kd);
+  setGainVal('pos-z-kp',  g.pos.z.kp);
+  setGainVal('pos-z-ki',  g.pos.z.ki);
+  setGainVal('pos-z-kd',  g.pos.z.kd);
+  setGainVal('att-rp-kp', g.att.roll.kp);
+  setGainVal('att-rp-ki', g.att.roll.ki);
+  setGainVal('att-rp-kd', g.att.roll.kd);
+  setGainVal('att-yaw-kp',g.att.yaw.kp);
+  setGainVal('att-yaw-ki',g.att.yaw.ki);
+  setGainVal('att-yaw-kd',g.att.yaw.kd);
 }
 
 // ── イベントハンドラ ──────────────────────────────────────────────────────
@@ -126,14 +124,22 @@ function updateSetpoint() {
   });
 });
 
-// PID ゲインスライダ変更
+// PID ゲイン スライダ ↔ 数値入力 双方向同期
 gainFields.forEach((id) => {
-  const el = $(id);
-  if (!el) return;
-  el.addEventListener('input', () => {
-    updateSliderLabel(el);
-    applyGainsFromUI();
-  });
+  const slider = $(id);
+  const numEl  = $(`${id}-num`);
+  if (slider) {
+    slider.addEventListener('input', () => {
+      if (numEl) numEl.value = parseFloat(slider.value).toFixed(3);
+      applyGainsFromUI();
+    });
+  }
+  if (numEl) {
+    numEl.addEventListener('input', () => {
+      if (slider) slider.value = numEl.value;
+      applyGainsFromUI();
+    });
+  }
 });
 
 function applyGainsFromUI() {
@@ -177,6 +183,30 @@ $('btn-clear-dist')?.addEventListener('click', () => {
   disturbance.clearAll();
   const el = $('btn-turb');
   if (el) { el.textContent = 'Turb'; el.classList.remove('on'); }
+});
+
+// ── ゲイン エクスポート / インポート ──────────────────────────────────────
+$('btn-gains-export')?.addEventListener('click', () => {
+  const json = JSON.stringify(controller.getGains(), null, 2);
+  const url  = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  Object.assign(document.createElement('a'), { href: url, download: 'xdrone-gains.json' }).click();
+  URL.revokeObjectURL(url);
+});
+
+$('btn-gains-import')?.addEventListener('click', () => $('gains-file-input')?.click());
+
+$('gains-file-input')?.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      controller.setGains(JSON.parse(ev.target.result));
+      syncGainsToUI();
+    } catch { /* invalid JSON — 無視 */ }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
 });
 
 // ── カメラコントロール ─────────────────────────────────────────────────────

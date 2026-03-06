@@ -304,10 +304,23 @@
       gap: 3px;
       cursor: pointer;
     }
-    .g-cell .val {
-      font: 300 9px/1 'JetBrains Mono', monospace;
+    .g-num {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border-dim);
       color: var(--cyan);
+      font: 300 9px/1 'JetBrains Mono', monospace;
+      width: 100%;
+      text-align: center;
+      outline: none;
+      -moz-appearance: textfield;
+      appearance: textfield;
+      padding: 1px 0;
+      cursor: text;
     }
+    .g-num::-webkit-inner-spin-button,
+    .g-num::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .g-num:focus { border-bottom-color: var(--cyan); }
     .g-spacer { height: 4px; grid-column: 1 / -1; }
 
     /* ── Range inputs ────────────────────────────────────────────────── */
@@ -609,63 +622,69 @@
         <!-- POS XY -->
         <span class="g-row-label">XY</span>
         <label for="pos-xy-kp" class="g-cell">
-          <span class="val">1.200</span>
-          <input type="range" id="pos-xy-kp" min="0" max="5"  step="0.05" value="1.2">
+          <input type="number" class="g-num" id="pos-xy-kp-num" value="1.000" min="0" max="5" step="0.05">
+          <input type="range" id="pos-xy-kp" min="0" max="5"  step="0.05" value="1.0">
         </label>
         <label for="pos-xy-ki" class="g-cell">
-          <span class="val">0.050</span>
-          <input type="range" id="pos-xy-ki" min="0" max="1"  step="0.01" value="0.05">
+          <input type="number" class="g-num" id="pos-xy-ki-num" value="0.020" min="0" max="1" step="0.01">
+          <input type="range" id="pos-xy-ki" min="0" max="1"  step="0.01" value="0.02">
         </label>
         <label for="pos-xy-kd" class="g-cell">
-          <span class="val">0.600</span>
-          <input type="range" id="pos-xy-kd" min="0" max="3"  step="0.05" value="0.6">
+          <input type="number" class="g-num" id="pos-xy-kd-num" value="0.500" min="0" max="3" step="0.05">
+          <input type="range" id="pos-xy-kd" min="0" max="3"  step="0.05" value="0.5">
         </label>
 
         <!-- POS Z -->
         <span class="g-row-label">Z</span>
         <label for="pos-z-kp" class="g-cell">
-          <span class="val">4.000</span>
-          <input type="range" id="pos-z-kp" min="0" max="10" step="0.1"  value="4.0">
+          <input type="number" class="g-num" id="pos-z-kp-num" value="3.000" min="0" max="10" step="0.1">
+          <input type="range" id="pos-z-kp" min="0" max="10" step="0.1"  value="3.0">
         </label>
         <label for="pos-z-ki" class="g-cell">
-          <span class="val">0.500</span>
-          <input type="range" id="pos-z-ki" min="0" max="2"  step="0.05" value="0.5">
+          <input type="number" class="g-num" id="pos-z-ki-num" value="0.100" min="0" max="2" step="0.05">
+          <input type="range" id="pos-z-ki" min="0" max="2"  step="0.05" value="0.1">
         </label>
         <label for="pos-z-kd" class="g-cell">
-          <span class="val">1.500</span>
-          <input type="range" id="pos-z-kd" min="0" max="5"  step="0.1"  value="1.5">
+          <input type="number" class="g-num" id="pos-z-kd-num" value="1.200" min="0" max="5" step="0.1">
+          <input type="range" id="pos-z-kd" min="0" max="5"  step="0.1"  value="1.2">
         </label>
 
         <!-- ATT ROLL/PITCH -->
         <span class="g-row-label">RP</span>
         <label for="att-rp-kp" class="g-cell">
-          <span class="val">7.000</span>
-          <input type="range" id="att-rp-kp" min="0" max="20" step="0.1"  value="7.0">
+          <input type="number" class="g-num" id="att-rp-kp-num" value="6.000" min="0" max="20" step="0.1">
+          <input type="range" id="att-rp-kp" min="0" max="20" step="0.1"  value="6.0">
         </label>
         <label for="att-rp-ki" class="g-cell">
-          <span class="val">0.000</span>
+          <input type="number" class="g-num" id="att-rp-ki-num" value="0.000" min="0" max="2" step="0.05">
           <input type="range" id="att-rp-ki" min="0" max="2"  step="0.05" value="0.0">
         </label>
         <label for="att-rp-kd" class="g-cell">
-          <span class="val">0.800</span>
-          <input type="range" id="att-rp-kd" min="0" max="3"  step="0.05" value="0.8">
+          <input type="number" class="g-num" id="att-rp-kd-num" value="0.600" min="0" max="3" step="0.05">
+          <input type="range" id="att-rp-kd" min="0" max="3"  step="0.05" value="0.6">
         </label>
 
         <!-- ATT YAW -->
         <span class="g-row-label">YW</span>
         <label for="att-yaw-kp" class="g-cell">
-          <span class="val">3.000</span>
-          <input type="range" id="att-yaw-kp" min="0" max="10" step="0.1"  value="3.0">
+          <input type="number" class="g-num" id="att-yaw-kp-num" value="2.000" min="0" max="10" step="0.1">
+          <input type="range" id="att-yaw-kp" min="0" max="10" step="0.1"  value="2.0">
         </label>
         <label for="att-yaw-ki" class="g-cell">
-          <span class="val">0.000</span>
+          <input type="number" class="g-num" id="att-yaw-ki-num" value="0.000" min="0" max="1" step="0.01">
           <input type="range" id="att-yaw-ki" min="0" max="1"  step="0.01" value="0.0">
         </label>
         <label for="att-yaw-kd" class="g-cell">
-          <span class="val">0.400</span>
-          <input type="range" id="att-yaw-kd" min="0" max="2"  step="0.05" value="0.4">
+          <input type="number" class="g-num" id="att-yaw-kd-num" value="0.300" min="0" max="2" step="0.05">
+          <input type="range" id="att-yaw-kd" min="0" max="2"  step="0.05" value="0.3">
         </label>
       </div>
+
+      <div style="display:flex;gap:5px;margin-top:12px">
+        <button id="btn-gains-export" class="btn" style="flex:1">Export</button>
+        <button id="btn-gains-import" class="btn" style="flex:1">Import</button>
+      </div>
+      <input type="file" id="gains-file-input" accept=".json" style="display:none">
     </div>
 
   </aside>
