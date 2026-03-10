@@ -8,6 +8,7 @@
 import { QuadrotorModel }    from './physics/QuadrotorModel.js';
 import { RK4Integrator }     from './physics/Integrator.js';
 import { FlightController }  from './control/FlightController.js';
+import { MPCController }     from './control/MPCController.js';
 import { DisturbanceModel }  from './disturbance/DisturbanceModel.js';
 import { Simulator }         from './simulation/Simulator.js';
 import { DroneVisualizer }   from './visualization/DroneVisualizer.js';
@@ -17,6 +18,7 @@ const model       = new QuadrotorModel();
 const integrator  = new RK4Integrator();
 const disturbance = new DisturbanceModel();
 const controller  = new FlightController(model);
+const mpcCtrl     = new MPCController(model);
 const simulator   = new Simulator({ model, integrator, controller, disturbance });
 
 const container   = document.getElementById('canvas-container');
@@ -24,6 +26,7 @@ const visualizer  = new DroneVisualizer(container, model);
 
 // デバッグ用にグローバルへ公開
 window._sim = simulator;
+window._mpc = mpcCtrl;
 
 // ── UI 要素の取得 ──────────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
@@ -315,6 +318,36 @@ function updateHUD() {
   if (tM3)    tM3.textContent    = snap.omega[2].toFixed(0);
   if (tM4)    tM4.textContent    = snap.omega[3].toFixed(0);
 }
+
+// ── コントローラ切り替え ──────────────────────────────────────────────────
+const pidGainsFrame = $('pid-gains-frame');
+const mpcInfo       = $('mpc-info');
+
+$('btn-ctrl-pid')?.addEventListener('click', () => {
+  mpcCtrl.setSetpoint({ ...simulator.controller.setpoint });
+  simulator.controller = controller;
+  simulator.controller.reset();
+  $('btn-ctrl-pid').classList.add('on');
+  $('btn-ctrl-mpc').classList.remove('on');
+  if (pidGainsFrame) pidGainsFrame.classList.remove('disabled');
+  if (mpcInfo) mpcInfo.style.display = 'none';
+});
+
+$('btn-ctrl-mpc')?.addEventListener('click', () => {
+  mpcCtrl.setSetpoint({ ...simulator.controller.setpoint });
+  simulator.controller = mpcCtrl;
+  $('btn-ctrl-mpc').classList.add('on');
+  $('btn-ctrl-pid').classList.remove('on');
+  if (pidGainsFrame) pidGainsFrame.classList.add('disabled');
+  if (mpcInfo) mpcInfo.style.display = 'block';
+  // MPC パラメータを UI に反映
+  const p = mpcCtrl.getGains().mpc;
+  const el = (id) => document.getElementById(id);
+  if (el('mpc-horizon')) el('mpc-horizon').textContent = `${p.horizon} steps`;
+  if (el('mpc-dt'))      el('mpc-dt').textContent      = `${p.dt} s`;
+  if (el('mpc-q-pos'))   el('mpc-q-pos').textContent   = `${p.Q[0]} / ${p.Q[2]}`;
+  if (el('mpc-q-att'))   el('mpc-q-att').textContent   = `${p.Q[6]} / ${p.Q[8]}`;
+});
 
 // ── 初期化 ────────────────────────────────────────────────────────────────
 syncGainsToUI();

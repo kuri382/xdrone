@@ -468,6 +468,35 @@
     #cam-controls .cam-sep { height: 5px; }
     #canvas-container.dragging canvas { cursor: grabbing !important; }
 
+    /* ── Controller mode toggle ──────────────────────────────────────── */
+    .ctrl-mode-group { display: flex; gap: 5px; }
+    #pid-gains-frame { transition: opacity 0.2s; }
+    #pid-gains-frame.disabled { opacity: 0.28; pointer-events: none; }
+    #mpc-info {
+      display: none;
+      margin-top: 10px;
+      font: 300 10px/1.7 'JetBrains Mono', monospace;
+      color: var(--text-2);
+      letter-spacing: 0.04em;
+    }
+    #mpc-info .mpc-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    #mpc-info .mpc-key {
+      color: var(--text-3);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      font-size: 9px;
+    }
+    #mpc-info .mpc-note {
+      margin-top: 6px;
+      font-size: 9px;
+      color: var(--text-3);
+      letter-spacing: 0.06em;
+    }
+
     /* ── Divider ─────────────────────────────────────────────────────── */
     .divider {
       width: 100%;
@@ -609,8 +638,24 @@
       </div>
     </div>
 
-    <!-- PID GAINS -->
+    <!-- CONTROLLER MODE -->
     <div class="frame">
+      <div class="sec-label">Controller</div>
+      <div class="ctrl-mode-group">
+        <button id="btn-ctrl-pid" class="btn on" style="flex:1">PID</button>
+        <button id="btn-ctrl-mpc" class="btn" style="flex:1">MPC</button>
+      </div>
+      <div id="mpc-info">
+        <div class="mpc-row"><span class="mpc-key">Horizon</span><span id="mpc-horizon">15 steps</span></div>
+        <div class="mpc-row"><span class="mpc-key">Step dt</span><span id="mpc-dt">0.01 s</span></div>
+        <div class="mpc-row"><span class="mpc-key">Q pos</span><span id="mpc-q-pos">12 / 25</span></div>
+        <div class="mpc-row"><span class="mpc-key">Q att</span><span id="mpc-q-att">10 / 4</span></div>
+        <div class="mpc-note">Linear MPC · precomputed gain</div>
+      </div>
+    </div>
+
+    <!-- PID GAINS -->
+    <div class="frame" id="pid-gains-frame">
       <div class="sec-label">PID Gains</div>
 
       <div class="gains-grid">
