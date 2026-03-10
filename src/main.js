@@ -19,7 +19,7 @@ const integrator  = new RK4Integrator();
 const disturbance = new DisturbanceModel();
 const controller  = new FlightController(model);
 const mpcCtrl     = new MPCController(model);
-const simulator   = new Simulator({ model, integrator, controller, disturbance });
+const simulator   = new Simulator({ model, integrator, controller: mpcCtrl, disturbance });
 
 const container   = document.getElementById('canvas-container');
 const visualizer  = new DroneVisualizer(container, model);
@@ -109,7 +109,7 @@ function updateSetpoint() {
   const y   = parseFloat(spY?.value   ?? 0);
   const z   = parseFloat(spZ?.value   ?? 1);
   const psi = parseFloat(spPsi?.value ?? 0) * Math.PI / 180;
-  controller.setSetpoint({ x, y, z, psi });
+  simulator.controller.setSetpoint({ x, y, z, psi });
 
   // number input に同期 (スライダ → 数値入力)
   const nx = $('sp-x-num');   if (nx) nx.value = x.toFixed(1);
@@ -241,7 +241,7 @@ visualizer.onTargetMove = (px, py, pz) => {
   const y   = Math.max(-10, Math.min(10, py));
   const z   = Math.max(0,   Math.min(10, pz));
   const psi = parseFloat(spPsi?.value ?? 0) * Math.PI / 180;
-  controller.setSetpoint({ x, y, z, psi });
+  simulator.controller.setSetpoint({ x, y, z, psi });
   if (spX) spX.value = x;
   if (spY) spY.value = y;
   if (spZ) spZ.value = z;
@@ -282,7 +282,7 @@ function animate(timestamp) {
   simulator.runFor(elapsed, 200);
 
   // 可視化更新
-  visualizer.update(simulator.state, simulator.omega2, controller.setpoint, elapsed);
+  visualizer.update(simulator.state, simulator.omega2, simulator.controller.setpoint, elapsed);
 
   // トラジェクトリ記録 (5フレームに1点)
   trajCounter++;
@@ -324,7 +324,7 @@ const pidGainsFrame = $('pid-gains-frame');
 const mpcInfo       = $('mpc-info');
 
 $('btn-ctrl-pid')?.addEventListener('click', () => {
-  mpcCtrl.setSetpoint({ ...simulator.controller.setpoint });
+  controller.setSetpoint({ ...simulator.controller.setpoint });
   simulator.controller = controller;
   simulator.controller.reset();
   $('btn-ctrl-pid').classList.add('on');
@@ -352,4 +352,21 @@ $('btn-ctrl-mpc')?.addEventListener('click', () => {
 // ── 初期化 ────────────────────────────────────────────────────────────────
 syncGainsToUI();
 updateSetpoint();
+
+// MPC をデフォルト選択状態にする
+{
+  $('btn-ctrl-mpc')?.classList.add('on');
+  $('btn-ctrl-pid')?.classList.remove('on');
+  if (pidGainsFrame) pidGainsFrame.classList.add('disabled');
+  if (mpcInfo) {
+    mpcInfo.style.display = 'block';
+    const p = mpcCtrl.getGains().mpc;
+    const el = (id) => document.getElementById(id);
+    if (el('mpc-horizon')) el('mpc-horizon').textContent = `${p.horizon} steps`;
+    if (el('mpc-dt'))      el('mpc-dt').textContent      = `${p.dt} s`;
+    if (el('mpc-q-pos'))   el('mpc-q-pos').textContent   = `${p.Q[0]} / ${p.Q[2]}`;
+    if (el('mpc-q-att'))   el('mpc-q-att').textContent   = `${p.Q[6]} / ${p.Q[8]}`;
+  }
+}
+
 requestAnimationFrame(animate);

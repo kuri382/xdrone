@@ -33,19 +33,25 @@ const NU = 4;   // 入力次元: [δT, τx, τy, τz]
 /** デフォルト MPC チューニングパラメータ */
 export const DEFAULT_MPC_PARAMS = {
   /** 予測ホライゾン ステップ数 */
-  horizon: 15,
+  horizon: 20,
   /** 予測ステップ幅 [s] (制御周期と合わせること) */
   dt: 0.01,
+  /**
+   * 終端重み係数: 最終ステップの Q を terminalWeight 倍する。
+   * 有限ホライゾンで無限ホライゾン LQR に近い応答を得るための主要チューニング。
+   * 大きいほど応答が速くなるが、大きすぎると振動する。
+   */
+  terminalWeight: 30,
   /**
    * 状態コスト対角成分 Q: [x, y, z, vx, vy, vz, φ, θ, ψ, p, q, r]
    * 大きいほど対応する状態誤差を強く抑制する
    */
-  Q: [12, 12, 25, 4, 4, 8, 10, 10, 4, 0.5, 0.5, 0.5],
+  Q: [15, 15, 30, 5, 5, 10, 12, 12, 4, 0.5, 0.5, 0.5],
   /**
    * 入力コスト対角成分 R: [δT, τx, τy, τz]
    * 大きいほど制御入力が抑制される
    */
-  R: [0.04, 0.6, 0.6, 6.0],
+  R: [0.04, 0.25, 0.25, 4.0],
 };
 
 export class MPCController {
@@ -56,10 +62,11 @@ export class MPCController {
   constructor(model, options = {}) {
     this.model = model;
     const p    = { ...DEFAULT_MPC_PARAMS, ...options };
-    this.N     = p.horizon;
-    this.dt    = p.dt;
-    this._Q    = p.Q.slice();
-    this._R    = p.R.slice();
+    this.N               = p.horizon;
+    this.dt              = p.dt;
+    this._Q              = p.Q.slice();
+    this._R              = p.R.slice();
+    this._terminalWeight = p.terminalWeight;
 
     /** セットポイント */
     this.setpoint = { x: 0, y: 0, z: 1, psi: 0 };
@@ -149,7 +156,13 @@ export class MPCController {
     // ── 4. コスト行列 ────────────────────────────────────────────────────
     const Qmat = zeros(NX, NX);
     for (let i = 0; i < NX; i++) set(Qmat, i, i, _Q[i]);
-    const Qbar = blockDiag(Array.from({ length: N }, () => copy(Qmat)));
+
+    // 終端重み: 最終ステップの Q を terminalWeight 倍して無限ホライゾンに近似
+    // これにより短い有限ホライゾンでも目標への到達を強く促せる
+    const Qterminal = scale(Qmat, this._terminalWeight);
+    const Qmats = Array.from({ length: N }, (_, k) =>
+      k === N - 1 ? copy(Qterminal) : copy(Qmat));
+    const Qbar = blockDiag(Qmats);
 
     const Rmat = zeros(NU, NU);
     for (let i = 0; i < NU; i++) set(Rmat, i, i, _R[i]);
@@ -177,8 +190,8 @@ export class MPCController {
       for (let j = 0; j < NX; j++)
         set(this._K, i, j, get(K_full, i, j));
 
-    console.log('[MPC] ゲイン計算完了. K[0] (dT row):',
-      Array.from(this._K.data.slice(0, NX)).map(v => v.toFixed(3)).join(' '));
+    console.log(`[MPC] ゲイン計算完了 (N=${N}, terminalWeight=${this._terminalWeight})`);
+    console.log('  K[dT]:', Array.from({ length: NX }, (_, j) => get(this._K, 0, j).toFixed(2)).join(' '));
   }
 
   // ─── 制御演算 (オンライン) ───────────────────────────────────────────────
@@ -249,10 +262,11 @@ export class MPCController {
   getGains() {
     return {
       mpc: {
-        horizon: this.N,
-        dt:      this.dt,
-        Q:       this._Q.slice(),
-        R:       this._R.slice(),
+        horizon:       this.N,
+        dt:            this.dt,
+        terminalWeight: this._terminalWeight,
+        Q:             this._Q.slice(),
+        R:             this._R.slice(),
       },
     };
   }
